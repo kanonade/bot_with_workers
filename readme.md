@@ -1,4 +1,4 @@
-# Basic disccord bot + rabbitmq + workers
+# Basic discord bot + rabbitmq + workers
 
 ```bash
 > echo "DISCORD_TOKEN=<bot-token>" > .env
