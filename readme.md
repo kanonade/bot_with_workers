@@ -35,6 +35,7 @@ This repo is a proof-of-concept. It is not production-grade and lacks many thing
 - Rabbitmq should be used in a high availability mode
 - Quorum queues should be used instead of classic queues
 - There is no authentication in front of the queues
+- There is no database to store generated results
 - Don't hardcode the queue names, use of an exclusive queue + reply_to for the return queue
 - Docker-compose is not a production deployment tool
 - Perhaps use a different MQ library, like celery
