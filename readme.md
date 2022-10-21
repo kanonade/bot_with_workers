@@ -30,7 +30,6 @@ To scale the workers, adjust the `worker.deploy.replicas` number in the `docker-
 
 This repo is a proof-of-concept. It is not production-grade and lacks many things:
 
-- Most notably nothing consumes the images queue to send generated results back to discord
 - It doesn't generate images, it has a placeholder for that logic
 - Rabbitmq should be used in a high availability mode
 - Quorum queues should be used instead of classic queues
@@ -38,5 +37,4 @@ This repo is a proof-of-concept. It is not production-grade and lacks many thing
 - There is no database to store generated results
 - Don't hardcode the queue names, use of an exclusive queue + reply_to for the return queue
 - Docker-compose is not a production deployment tool
-- Perhaps use a different MQ library, like celery
 
