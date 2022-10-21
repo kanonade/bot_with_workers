@@ -1,52 +1,78 @@
-import random
-import os
-import time
-import pika
 import logging
-import json
+import os
+import random
+import time
+
+import kombu
+import kombu.mixins
 
 log = logging.getLogger(__name__)
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 
 
-class Worker:
-    def __init__(self):
-        self.connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=RABBITMQ_HOST)
-        )
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(queue="prompts", durable=True)
-        self.channel.queue_declare(queue="images", durable=True)
-        self.channel.basic_qos(prefetch_count=1)
-        self.channel.basic_consume(queue="prompts", on_message_callback=self.callback)
+class Worker(kombu.mixins.ConsumerProducerMixin):
+    def __init__(self, connection):
+        amqp_host = f"amqp://{RABBITMQ_HOST}:5672"
+        self.connection = kombu.Connection(amqp_host)
 
-    def callback(self, ch, method, properties, body):
-        request = json.loads(body)
-        print(f"Received {request['prompt']}")
+        self.channel = self.connection.channel()
+        self.prompt_queue_name = "prompts"
+        self.prompt_queue = kombu.Queue(
+            self.prompt_queue_name,
+            durable=True,
+            exchange=self.prompt_queue_name,
+            routing_key=self.prompt_queue_name,
+            consumer_arguments={"prefetch_count": 1},
+            channel=self.channel,
+        )
+        self.prompt_queue.declare()
+
+        self.image_queue_name = "images"
+        self.image_queue = kombu.Queue(
+            self.image_queue_name,
+            durable=True,
+            exchange=self.image_queue_name,
+            routing_key=self.image_queue_name,
+            consumer_arguments={"prefetch_count": 1},
+            channel=self.channel,
+        )
+        self.image_queue.declare()
+
+    def get_consumers(self, Consumer, channel):
+        return [
+            Consumer(
+                queues=self.prompt_queue,
+                accept=["json"],
+                callbacks=[self.process_task],
+                prefetch_count=1,
+            )
+        ]
+
+    def process_task(self, body, message):
+        print(f"Received {body['prompt']}")
 
         print("Waiting random time to simulate work")
         time.sleep(random.randint(1, 3))
 
         response = {
-            "user": request["user"],
-            "channel": request["channel"],
-            "image": "Pretend I'm an image of " + request["prompt"],
+            "user": body["user"],
+            "channel": body["channel"],
+            "image": "Pretend I'm an image of " + body["prompt"],
         }
 
-        ch.basic_publish(
+        self.producer.publish(
+            response,
             exchange="",
-            routing_key=properties.reply_to,
-            properties=pika.BasicProperties(correlation_id=properties.correlation_id),
-            body=json.dumps(response),
+            routing_key="images",
+            retry=True,
+            serializer="json",
         )
 
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-        print(f"Sent response for {request['prompt']}")
+        print(f"Sent response for {body['prompt']}")
+        message.ack()
 
 
 if __name__ == "__main__":
-    print("starting worker")
-    worker = Worker()
-    worker.channel.start_consuming()
-    worker.channel.stop_consuming()
+    worker = Worker(None)
+    worker.run()
