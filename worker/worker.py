@@ -5,51 +5,69 @@ import time
 
 import kombu
 import kombu.mixins
+from typing import Optional, Tuple, Union
 
 log = logging.getLogger(__name__)
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+WORKER_USER = os.getenv("WORKER_USER")
+WORKER_PASSWORD = os.getenv("WORKER_PASSWORD")
 
 
 class Worker(kombu.mixins.ConsumerProducerMixin):
-    def __init__(self, connection):
+    def __init__(
+        self,
+        connection: kombu.Connection,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
         amqp_host = f"amqp://{RABBITMQ_HOST}:5672"
         self.connection = kombu.Connection(amqp_host)
 
         self.channel = self.connection.channel()
         self.prompt_queue_name = "prompts"
-        self.prompt_queue = kombu.Queue(
-            self.prompt_queue_name,
-            durable=True,
-            exchange=self.prompt_queue_name,
-            routing_key=self.prompt_queue_name,
-            consumer_arguments={"prefetch_count": 1},
-            channel=self.channel,
-        )
-        self.prompt_queue.declare()
+        self.prompt_queue = self.ensure_queue(self.prompt_queue_name)
 
         self.image_queue_name = "images"
-        self.image_queue = kombu.Queue(
-            self.image_queue_name,
+        self.image_queue = self.ensure_queue(self.image_queue_name)
+
+    def ensure_queue(self, name: str) -> kombu.Queue:
+        """Ensure a queue exists and return it.
+
+        Args:
+            name (str): The name of the queue
+
+        Returns:
+            kombu.Queue: The queue
+        """
+        queue = kombu.Queue(
+            name,
             durable=True,
-            exchange=self.image_queue_name,
-            routing_key=self.image_queue_name,
+            exchange=name,
+            routing_key=name,
             consumer_arguments={"prefetch_count": 1},
             channel=self.channel,
         )
-        self.image_queue.declare()
+        queue.declare()
+        return queue
 
     def get_consumers(self, Consumer, channel):
         return [
             Consumer(
                 queues=self.prompt_queue,
                 accept=["json"],
-                callbacks=[self.process_task],
+                callbacks=[self.on_message],
                 prefetch_count=1,
             )
         ]
 
-    def process_task(self, body, message):
+    def on_message(self, body: dict, message: kombu.Message):
+        """Take a message from the queue and pretend to process it. Then queue the result into the image queue.
+
+        Args:
+            body (dict): The message body decoded from json
+            message (kombu.Message): The message object itself
+        """
         print(f"Received {body['prompt']}")
 
         print("Waiting random time to simulate work")
@@ -63,8 +81,8 @@ class Worker(kombu.mixins.ConsumerProducerMixin):
 
         self.producer.publish(
             response,
-            exchange="",
-            routing_key="images",
+            exchange=self.image_queue_name,
+            routing_key=self.image_queue_name,
             retry=True,
             serializer="json",
         )
@@ -74,5 +92,5 @@ class Worker(kombu.mixins.ConsumerProducerMixin):
 
 
 if __name__ == "__main__":
-    worker = Worker(None)
+    worker = Worker(None, user=WORKER_USER, password=WORKER_PASSWORD)
     worker.run()

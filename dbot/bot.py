@@ -5,12 +5,14 @@ import queue_manager
 from discord.ext import commands, tasks
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+BOT_USER = os.getenv("BOT_USER")
+BOT_PASSWORD = os.getenv("BOT_PASSWORD")
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-queue_mgr = queue_manager.QueueManager()
+queue_mgr = queue_manager.QueueManager(user=BOT_USER, password=BOT_PASSWORD)
 
 
 @bot.event

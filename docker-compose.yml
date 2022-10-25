@@ -1,15 +1,16 @@
 version: "3.9"
 services:
   rmq:
-    image: rabbitmq:management
-    container_name: rmq
+    build: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - 5672:5672
+      - 15672:15672
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
       - RABBITMQ_DEFAULT_VHOST=/
+    env_file:
+      - .env
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 3s
@@ -19,22 +20,22 @@ services:
   bot:
     build: dbot
     container_name: dbot
-    depends_on:
-      rmq:
-        condition: service_healthy
     environment:
       - RABBITMQ_HOST=rmq
     env_file:
       - .env
-
-  worker:
-    build: worker
     depends_on:
       rmq:
         condition: service_healthy
+
+  worker:
+    build: worker
     environment:
       - RABBITMQ_HOST=rmq
     deploy:
       replicas: 2
       restart_policy:
         condition: on-failure
+    depends_on:
+      rmq:
+        condition: service_healthy
