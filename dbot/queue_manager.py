@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import kombu
 
@@ -7,32 +7,39 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 
 
 class QueueManager:
-    def __init__(self):
+    def __init__(self, user: Optional[str] = None, password: Optional[str] = None):
         amqp_host = f"amqp://{RABBITMQ_HOST}:5672"
-        self.connection = kombu.Connection(amqp_host)
+        self.connection = kombu.Connection(amqp_host, userid=user, password=password)
         self.channel = self.connection.channel()
+
         self.prompt_queue_name = "prompts"
-        self.prompt_queue = kombu.Queue(
-            self.prompt_queue_name,
-            durable=True,
-            exchange=self.prompt_queue_name,
-            routing_key=self.prompt_queue_name,
-            consumer_arguments={"prefetch_count": 1},
-            channel=self.channel,
-        )
+        self.prompt_queue = self.ensure_queue(self.prompt_queue_name)
+
+        self.image_queue_name = "images"
+        self.image_queue = self.ensure_queue(self.image_queue_name)
+
         self.prompt_queue.declare()
         self.publisher = kombu.Producer(self.channel, self.prompt_queue)
 
-        self.image_queue_name = "images"
-        self.image_queue = kombu.Queue(
-            self.image_queue_name,
+    def ensure_queue(self, name: str) -> kombu.Queue:
+        """Ensure a queue exists and return it.
+
+        Args:
+            name (str): The name of the queue
+
+        Returns:
+            kombu.Queue: The queue
+        """
+        queue = kombu.Queue(
+            name,
             durable=True,
-            exchange=self.image_queue_name,
-            routing_key=self.image_queue_name,
+            exchange=name,
+            routing_key=name,
             consumer_arguments={"prefetch_count": 1},
             channel=self.channel,
         )
-        self.image_queue.declare()
+        queue.declare()
+        return queue
 
     def enqueue_prompt(self, req: dict):
         self.publisher.publish(

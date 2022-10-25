@@ -1,7 +1,8 @@
 # Basic discord bot + rabbitmq + workers
 
+Fill out an `.env` file with a `DISCORD_TOKEN`, `BOT_USER`, `BOT_PASSWORD`, `WORKER_USER`, and `WORKER_PASSWORD`.
+
 ```bash
-> echo "DISCORD_TOKEN=<bot-token>" > .env
 
 > docker-compose up -d
 

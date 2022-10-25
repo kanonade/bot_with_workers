@@ -5,14 +5,22 @@ import time
 
 import kombu
 import kombu.mixins
+from typing import Optional, Tuple, Union
 
 log = logging.getLogger(__name__)
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+WORKER_USER = os.getenv("WORKER_USER")
+WORKER_PASSWORD = os.getenv("WORKER_PASSWORD")
 
 
 class Worker(kombu.mixins.ConsumerProducerMixin):
-    def __init__(self, connection: kombu.Connection):
+    def __init__(
+        self,
+        connection: kombu.Connection,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
         amqp_host = f"amqp://{RABBITMQ_HOST}:5672"
         self.connection = kombu.Connection(amqp_host)
 
@@ -84,5 +92,5 @@ class Worker(kombu.mixins.ConsumerProducerMixin):
 
 
 if __name__ == "__main__":
-    worker = Worker(None)
+    worker = Worker(None, user=WORKER_USER, password=WORKER_PASSWORD)
     worker.run()
